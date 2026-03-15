@@ -6,10 +6,7 @@ on:
 
 jobs:
   build:
-    runs-on:
-  push:
-    branches: [master]
-  workflow_dispatch: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -22,11 +19,6 @@ jobs:
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
 
-      - name: Install Samsung TV SDK + Certificate Extension
-        run: |
-          ${GITHUB_WORKSPACE}/tizen-studio/package-manager/package-manager-cli.bin install --accept-license \
-            cert-add-on 2>&1 | tail -5
-
       - name: Install expect
         run: sudo apt install -y expect
 
@@ -36,26 +28,14 @@ jobs:
           tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
 
-      - name: Create app
+      - name: Create app files
         run: |
           mkdir -p app
           cp facade-icon.png app/icon.png
-          cat > app/config.xml << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">
-    <access origin="*" subdomains="true"></access>
-    <tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>
-    <content src="index.html"/>
-    <icon src="icon.png"/>
-    <name>Facade Player</name>
-    <tizen:profile name="tv"/>
-    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>
-</widget>
-EOF
-          cat > app/index.html << 'EOF'
-<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head>
-<body style="background:#000"><script>window.location.replace('http://192.168.1.126:3001/player-legacy.html');</script></body></html>
-EOF
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">\n    <access origin="*" subdomains="true"></access>\n    <tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>\n    <content src="index.html"/>\n    <icon src="icon.png"/>\n    <name>Facade Player</name>\n    <tizen:profile name="tv"/>\n    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
+          printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
+          cat app/config.xml
+          cat app/index.html
 
       - name: Fix passwords
         run: |
@@ -63,7 +43,7 @@ EOF
           sed -i "s|${GITHUB_WORKSPACE}/tizen-studio-data/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
           sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
 
-      - name: Package
+      - name: Package WGT
         run: |
           mkdir -p release
           expect -c '
@@ -76,9 +56,8 @@ EOF
             expect eof
           '
           ls -la release/
-          unzip -l release/*.wgt
 
-      - name: Upload
+      - name: Upload WGT
         uses: actions/upload-artifact@v4
         with:
           name: FacadePlayer
