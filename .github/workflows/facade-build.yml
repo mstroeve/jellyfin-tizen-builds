@@ -28,7 +28,7 @@ jobs:
           sed -i "s|facade.pwd|1234|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
           sed -i "s|tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
           sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          expect ../package.exp
+          expect ${GITHUB_WORKSPACE}/package.exp
           ls -la release/
           unzip -l release/*.wgt
         working-directory: .
