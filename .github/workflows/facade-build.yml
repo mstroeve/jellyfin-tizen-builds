@@ -24,7 +24,7 @@ jobs:
           mkdir -p app release
           cp facade-icon.png app/icon.png
           printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="1.0.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="Fcd9NewApp.FacadePlayer" package="Fcd9NewApp" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
-          printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
+          printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/tizen-player.htm");</script></body></html>\n' > app/index.html
       - name: Package
         run: |
           sed -i 's|password="[^"]*\.pwd"|password=""|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
