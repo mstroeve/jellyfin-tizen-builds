@@ -1,11 +1,11 @@
 name: Build Facade WGT
 
-on:
+on: [push]  #
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [push]  # ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
