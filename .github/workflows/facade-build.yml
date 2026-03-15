@@ -12,23 +12,29 @@ jobs:
           curl -o ti "https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin"
           chmod +x ti && ./ti --accept-license "${GITHUB_WORKSPACE}/tizen-studio" && rm ti
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
+          echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
           sudo apt install -y expect
-          tizen security-profiles add -n J -a "${GITHUB_WORKSPACE}/tizencert.p12" -p 1234
-          tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
-          chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
+      - name: Setup Samsung cert from secrets
+        run: |
+          mkdir -p $HOME/SamsungCertificate/facade
+          echo "${{ secrets.SAMSUNG_AUTHOR }}" | base64 -d > $HOME/SamsungCertificate/facade/author.p12
+          echo "${{ secrets.SAMSUNG_DIST }}" | base64 -d > $HOME/SamsungCertificate/facade/distributor.p12
+          echo "${{ secrets.SAMSUNG_PROFILE }}" | base64 -d > $HOME/SamsungCertificate/facade/device-profile.xml
+          tizen security-profiles add -n facade \
+            -a $HOME/SamsungCertificate/facade/author.p12 -p "${{ secrets.SAMSUNG_PASSWORD }}" \
+            -d $HOME/SamsungCertificate/facade/distributor.p12 -dp "${{ secrets.SAMSUNG_PASSWORD }}"
+          tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
+          chmod 755 "$HOME/tizen-studio-data/profile/profiles.xml"
       - name: Create + Package
         run: |
           mkdir -p app release
           cp facade-icon.png app/icon.png
-          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="1.0.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="FacadeNL1.FacadePlayer" package="FacadeNL1" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
           printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
-          sed -i "s|${GITHUB_WORKSPACE}/tizencert.pwd|1234|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          sed -i "s|tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          expect -c 'set timeout -1; spawn tizen package -t wgt -o ./release -s J -- app; expect "Author password:"; send "1234\r"; expect "Yes:*"; send "N\r"; expect eof'
-          echo "=== Result ==="
+          P="$HOME/tizen-studio-data/profile/profiles.xml"
+          sed -i 's|password="[^"]*\.pwd"|password=""|g' "$P"
+          expect -c 'set timeout -1; spawn tizen package -t wgt -o ./release -s facade -- app; expect "Author password:"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "*password*"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "Yes:*"; send "N\r"; expect "*password*"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "Yes:*"; send "N\r"; expect eof'
           ls -la release/
-          file release/*.wgt
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
