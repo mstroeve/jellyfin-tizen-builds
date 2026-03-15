@@ -1,63 +1,42 @@
 name: Build Facade WGT
-
 on:
   push:
     branches: [master]
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Tizen Studio 6.1
+      - name: Install Tizen Studio 6.1 + expect
         run: |
-          curl -o tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin"
-          chmod +x tizen-installer
-          ./tizen-installer --accept-license "${GITHUB_WORKSPACE}/tizen-studio"
-          rm tizen-installer
+          curl -o ti "https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin"
+          chmod +x ti && ./ti --accept-license "${GITHUB_WORKSPACE}/tizen-studio" && rm ti
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
-          echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
-
-      - name: Install expect
-        run: sudo apt install -y expect
-
+          sudo apt install -y expect
       - name: Setup cert
         run: |
-          tizen security-profiles add -n Jellyfin -a "${GITHUB_WORKSPACE}/tizencert.p12" -p 1234
+          tizen security-profiles add -n J -a "${GITHUB_WORKSPACE}/tizencert.p12" -p 1234
           tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
-
-      - name: Create app files
+      - name: Create app
         run: |
           mkdir -p app
           cp facade-icon.png app/icon.png
-          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">\n    <access origin="*" subdomains="true"></access>\n    <tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>\n    <content src="index.html"/>\n    <icon src="icon.png"/>\n    <name>Facade Player</name>\n    <tizen:profile name="tv"/>\n    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
-          printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
-          cat app/config.xml
-          cat app/index.html
-
-      - name: Fix passwords
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
+          printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>F</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
+          # Add dummy files to increase WGT size
+          mkdir -p app/assets
+          for i in $(seq 1 50); do dd if=/dev/urandom bs=1024 count=10 of=app/assets/chunk_$i.js 2>/dev/null; done
+      - name: Fix passwords + Package
         run: |
-          sed -i "s|${GITHUB_WORKSPACE}/tizencert.pwd|1234|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          sed -i "s|${GITHUB_WORKSPACE}/tizen-studio-data/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-          sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
-
-      - name: Package WGT
-        run: |
+          P="${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
+          sed -i "s|${GITHUB_WORKSPACE}/tizencert.pwd|1234|g" "$P"
+          sed -i "s|tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" "$P"
+          sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' "$P"
           mkdir -p release
-          expect -c '
-            set timeout -1
-            spawn tizen package -t wgt -o ./release -s Jellyfin -- app
-            expect "Author password:"
-            send -- "1234\r"
-            expect "Yes: (Y), No: (N) ?"
-            send -- "N\r"
-            expect eof
-          '
+          expect -c 'set timeout -1; spawn tizen package -t wgt -o ./release -s J -- app; expect "Author password:"; send "1234\r"; expect "Yes:*"; send "N\r"; expect eof'
           ls -la release/
-
-      - name: Upload WGT
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: FacadePlayer
