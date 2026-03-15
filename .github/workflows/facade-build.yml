@@ -33,8 +33,25 @@ jobs:
           printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
           P="${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           sed -i 's|password="[^"]*\.pwd"|password=""|g' "$P"
-          expect -c 'set timeout -1; spawn tizen package -t wgt -o ./release -s facade -- app; expect "Author password:"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "*password*"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "Yes:*"; send "N\r"; expect "*password*"; send "'"${{ secrets.SAMSUNG_PASSWORD }}"'\r"; expect "Yes:*"; send "N\r"; expect eof'
+          cat > /tmp/sign.exp << EXPEOF
+          set timeout -1
+          spawn tizen package -t wgt -o ./release -s facade -- app
+          expect "Author password:"
+          send -- "${SIGN_PWD}\r"
+          expect "Yes: (Y), No: (N) ?"
+          send -- "N\r"
+          expect "Distributor1 password:"
+          send -- "${SIGN_PWD}\r"
+          expect "Yes: (Y), No: (N) ?"
+          send -- "N\r"
+          expect eof
+          EXPEOF
+          expect -f /tmp/sign.exp
+          echo "=== Result ==="
           ls -la release/
+          unzip -l release/*.wgt 2>/dev/null | tail -5
+        env:
+          SIGN_PWD: ${{ secrets.SAMSUNG_PASSWORD }}
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
