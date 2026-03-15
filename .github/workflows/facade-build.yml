@@ -23,7 +23,7 @@ jobs:
           tizen security-profiles add -n facade \
             -a $HOME/SamsungCertificate/facade/author.p12 -p "${{ secrets.SAMSUNG_PASSWORD }}" \
             -d $HOME/SamsungCertificate/facade/distributor.p12 -dp "${{ secrets.SAMSUNG_PASSWORD }}"
-          tizen cli-config "profiles.path=$HOME/tizen-studio-data/profile/profiles.xml"
+          tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
       - name: Create + Package
         run: |
