@@ -14,38 +14,30 @@ jobs:
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
           sudo apt install -y expect
-      - name: Setup Samsung cert
-        env:
-          CERT_PWD: ${{ secrets.SAMSUNG_PASSWORD }}
+      - name: Generate Tizen cert + profile
         run: |
+          tizen certificate -a FacadePlayer -p 1234 -f facade -e info@facade.nl
           tizen security-profiles add -n facade \
-            -a "${GITHUB_WORKSPACE}/samsung-author.p12" -p "${CERT_PWD}" \
-            -d "${GITHUB_WORKSPACE}/samsung-distributor.p12" -dp "${CERT_PWD}"
+            -a "${GITHUB_WORKSPACE}/tizen-studio-data/keystore/author/facade.p12" -p 1234
           tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
       - name: Create + Package
-        env:
-          CERT_PWD: ${{ secrets.SAMSUNG_PASSWORD }}
         run: |
           mkdir -p app release
           cp facade-icon.png app/icon.png
-          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="1.0.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="FacadeNL1.FacadePlayer" package="FacadeNL1" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="1.0.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="Fcd3XYZr7q.FacadePlayer" package="Fcd3XYZr7q" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
           printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
           P="${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           sed -i 's|password="[^"]*\.pwd"|password=""|g' "$P"
-          cat > /tmp/sign.exp << EXPEOF
-          set timeout -1
-          spawn tizen package -t wgt -o ./release -s facade -- app
-          expect "Author password:"
-          send -- "${CERT_PWD}\r"
-          expect "Yes: (Y), No: (N) ?"
-          send -- "N\r"
-          expect "Distributor1 password:"
-          send -- "${CERT_PWD}\r"
-          expect "Yes: (Y), No: (N) ?"
-          send -- "N\r"
-          expect eof
-          EXPEOF
+          cat > /tmp/sign.exp << 'EXPEOF'
+set timeout -1
+spawn tizen package -t wgt -o ./release -s facade -- app
+expect "Author password:"
+send -- "1234\r"
+expect "Yes: (Y), No: (N) ?"
+send -- "N\r"
+expect eof
+EXPEOF
           expect -f /tmp/sign.exp
           echo "=== Result ==="
           ls -la release/
