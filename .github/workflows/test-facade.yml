@@ -3,55 +3,55 @@ name: Build Facade WGT
 on:
   workflow_dispatch:
 
-env:
-  TIZEN_STUDIO_VER: 4.5.1
-
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install expect + Tizen Studio
+      - name: Install Tizen Studio 6.1
         run: |
-          sudo apt install -y expect
-          curl -o tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_STUDIO_VER}/web-cli_Tizen_Studio_${TIZEN_STUDIO_VER}_ubuntu-64.bin"
+          curl -o tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin"
           chmod +x tizen-installer
           ./tizen-installer --accept-license "${GITHUB_WORKSPACE}/tizen-studio"
           rm tizen-installer
+          echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
+          echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
+
+      - name: Install Samsung TV SDK + Certificate Extension
+        run: |
+          ${GITHUB_WORKSPACE}/tizen-studio/package-manager/package-manager-cli.bin install --accept-license \
+            cert-add-on 2>&1 | tail -5
+
+      - name: Install expect
+        run: sudo apt install -y expect
 
       - name: Setup cert
         run: |
-          ./tizen-studio/tools/ide/bin/tizen security-profiles add -n Jellyfin -a "${GITHUB_WORKSPACE}/tizencert.p12" -p 1234
-          ./tizen-studio/tools/ide/bin/tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
+          tizen security-profiles add -n Jellyfin -a "${GITHUB_WORKSPACE}/tizencert.p12" -p 1234
+          tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
           chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
 
       - name: Create app
         run: |
           mkdir -p app
           cp facade-icon.png app/icon.png
-          cat > app/config.xml << 'CFGEOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">
-              <access origin="*" subdomains="true"></access>
-              <tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>
-              <content src="index.html"/>
-              <icon src="icon.png"/>
-              <name>Facade Player</name>
-              <tizen:profile name="tv"/>
-              <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>
-          </widget>
-          CFGEOF
-          cat > app/index.html << 'IDXEOF'
-          <!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head>
-          <body style="background:#000"><script>window.location.replace('http://192.168.1.126:3001/player-legacy.html');</script></body></html>
-          IDXEOF
-          # Remove leading whitespace from heredoc
-          sed -i 's/^          //' app/config.xml app/index.html
-          echo "Files:"
-          ls -la app/
-          echo "Config:"
-          cat app/config.xml
+          cat > app/config.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="0.1.0" viewmodes="fullscreen">
+    <access origin="*" subdomains="true"></access>
+    <tizen:application id="AprZAARz4r.Jellyfin" package="AprZAARz4r" required_version="2.3"/>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <name>Facade Player</name>
+    <tizen:profile name="tv"/>
+    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>
+EOF
+          cat > app/index.html << 'EOF'
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head>
+<body style="background:#000"><script>window.location.replace('http://192.168.1.126:3001/player-legacy.html');</script></body></html>
+EOF
 
       - name: Fix passwords
         run: |
@@ -59,12 +59,12 @@ jobs:
           sed -i "s|${GITHUB_WORKSPACE}/tizen-studio-data/tools/certificate-generator/certificates/distributor/tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
           sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
 
-      - name: Package directly (no build-web)
+      - name: Package
         run: |
           mkdir -p release
           expect -c '
             set timeout -1
-            spawn ./tizen-studio/tools/ide/bin/tizen package -t wgt -o ./release -s Jellyfin -- app
+            spawn tizen package -t wgt -o ./release -s Jellyfin -- app
             expect "Author password:"
             send -- "1234\r"
             expect "Yes: (Y), No: (N) ?"
@@ -72,7 +72,6 @@ jobs:
             expect eof
           '
           ls -la release/
-          echo "Files in WGT:"
           unzip -l release/*.wgt
 
       - name: Upload
