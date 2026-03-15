@@ -9,31 +9,29 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup
         run: |
-          curl -o ti "https://download.tizen.org/sdk/Installer/tizen-studio_6.1/web-cli_Tizen_Studio_6.1_ubuntu-64.bin"
+          curl -o ti "https://download.tizen.org/sdk/Installer/tizen-studio_4.5.1/web-cli_Tizen_Studio_4.5.1_ubuntu-64.bin"
           chmod +x ti && ./ti --accept-license "${GITHUB_WORKSPACE}/tizen-studio" && rm ti
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools/ide/bin" >> $GITHUB_PATH
           echo "${GITHUB_WORKSPACE}/tizen-studio/tools" >> $GITHUB_PATH
           sudo apt install -y expect
-      - name: Generate Tizen cert + profile
+      - name: Cert + profile
         run: |
-          tizen certificate -a FacadePlayer -p 1234 -f facade -e info@facade.nl
-          tizen security-profiles add -n facade \
-            -a "${GITHUB_WORKSPACE}/tizen-studio-data/keystore/author/facade.p12" -p 1234
+          tizen certificate -a FP -p 1234 -f facade -e info@facade.nl
+          tizen security-profiles add -n facade -a "${GITHUB_WORKSPACE}/tizen-studio-data/keystore/author/facade.p12" -p 1234
           tizen cli-config "profiles.path=${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
-          chmod 755 "${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
       - name: Create + Package
         run: |
           mkdir -p app release
           cp facade-icon.png app/icon.png
           printf '<?xml version="1.0" encoding="UTF-8"?>\n<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://facade.nl/player" version="1.0.0" viewmodes="fullscreen">\n<access origin="*" subdomains="true"></access>\n<tizen:application id="Fcd3XYZr7q.FacadePlayer" package="Fcd3XYZr7q" required_version="2.3"/>\n<content src="index.html"/>\n<icon src="icon.png"/>\n<name>Facade Player</name>\n<tizen:profile name="tv"/>\n<tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>\n</widget>\n' > app/config.xml
           printf '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Facade</title></head><body style="background:#000"><script>window.location.replace("http://192.168.1.126:3001/player-legacy.html");</script></body></html>\n' > app/index.html
-          P="${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml"
-          sed -i 's|password="[^"]*\.pwd"|password=""|g' "$P"
-          printf 'set timeout -1\nspawn tizen package -t wgt -o ./release -s facade -- app\nexpect "Author password:"\nsend -- "1234\\r"\nexpect "Yes: (Y), No: (N) ?"\nsend -- "N\\r"\nexpect eof\n' > /tmp/sign.exp
-          expect -f /tmp/sign.exp
-          echo "=== Result ==="
+          sed -i "s|facade.pwd|1234|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
+          sed -i "s|tizen-distributor-signer.pwd|tizenpkcs12passfordsigner|g" ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
+          sed -i 's|password=""|password="tizenpkcs12passfordsigner"|g' ${GITHUB_WORKSPACE}/tizen-studio-data/profile/profiles.xml
+          expect ../package.exp
           ls -la release/
           unzip -l release/*.wgt
+        working-directory: .
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
